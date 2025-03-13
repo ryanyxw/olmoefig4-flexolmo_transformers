@@ -658,6 +658,7 @@ _import_structure = {
     "models.olmo": ["OlmoConfig"],
     "models.olmo2": ["Olmo2Config"],
     "models.olmoe": ["OlmoeConfig"],
+    "models.olmoe2": ["Olmoe2Config"],
     "models.omdet_turbo": [
         "OmDetTurboConfig",
         "OmDetTurboProcessor",
@@ -3150,6 +3151,13 @@ else:
             "OlmoeForCausalLM",
             "OlmoeModel",
             "OlmoePreTrainedModel",
+        ]
+    )
+    _import_structure["models.olmoe2"].extend(
+        [
+            "Olmoe2ForCausalLM",
+            "Olmoe2Model",
+            "Olmoe2PreTrainedModel",
         ]
     )
     _import_structure["models.omdet_turbo"].extend(
@@ -5841,6 +5849,7 @@ if TYPE_CHECKING:
     from .models.olmo import OlmoConfig
     from .models.olmo2 import Olmo2Config
     from .models.olmoe import OlmoeConfig
+    from .models.olmoe2 import Olmoe2Config
     from .models.omdet_turbo import (
         OmDetTurboConfig,
         OmDetTurboProcessor,
@@ -8009,6 +8018,11 @@ if TYPE_CHECKING:
             OlmoeForCausalLM,
             OlmoeModel,
             OlmoePreTrainedModel,
+        )
+        from .models.olmoe2 import (
+            Olmoe2ForCausalLM,
+            Olmoe2Model,
+            Olmoe2PreTrainedModel,
         )
         from .models.omdet_turbo import (
             OmDetTurboForObjectDetection,

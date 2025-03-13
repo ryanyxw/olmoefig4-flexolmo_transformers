@@ -196,6 +196,7 @@ from . import (
     olmo,
     olmo2,
     olmoe,
+    olmoe2,
     omdet_turbo,
     oneformer,
     openai,

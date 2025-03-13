@@ -373,6 +373,7 @@ else:
             ("olmo", (None, "GPTNeoXTokenizerFast" if is_tokenizers_available() else None)),
             ("olmo2", (None, "GPTNeoXTokenizerFast" if is_tokenizers_available() else None)),
             ("olmoe", (None, "GPTNeoXTokenizerFast" if is_tokenizers_available() else None)),
+            ("olmoe2", (None, "GPT2Tokenizer" if is_tokenizers_available() else None)),
             (
                 "omdet-turbo",
                 ("CLIPTokenizer", "CLIPTokenizerFast" if is_tokenizers_available() else None),
