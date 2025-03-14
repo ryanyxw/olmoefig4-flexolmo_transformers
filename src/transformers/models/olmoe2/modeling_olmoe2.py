@@ -164,6 +164,7 @@ class Olmoe2Attention(nn.Module):
         self.k_norm = Olmoe2RMSNorm(
             (self.hidden_size // self.num_heads) * self.num_key_value_heads, eps=config.rms_norm_eps
         )
+        self.scaling = self.head_dim**-0.5
 
     def forward(
         self,
