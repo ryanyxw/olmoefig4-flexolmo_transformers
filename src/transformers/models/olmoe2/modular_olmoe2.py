@@ -1,17 +1,20 @@
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import torch
+
+from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 
 from ...cache_utils import Cache
 from ...pytorch_utils import ALL_LAYERNORM_LAYERS
 from ...utils import logging
-from ..llama.modeling_llama import LlamaRMSNorm
+from ..llama.modeling_llama import LlamaRMSNorm, eager_attention_forward
 from ..olmoe.configuration_olmoe import OlmoeConfig
 from ..olmoe.modeling_olmoe import (
     OlmoeAttention,
     OlmoeDecoderLayer,
     OlmoeForCausalLM,
     OlmoeModel,
+    apply_rotary_pos_emb,
 )
 
 
@@ -185,7 +188,66 @@ ALL_LAYERNORM_LAYERS.append(Olmoe2RMSNorm)
 
 
 class Olmoe2Attention(OlmoeAttention):
-    pass
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        past_key_value: Optional[Cache] = None,
+        output_attentions: bool = False,
+        use_cache: bool = False,
+        cache_position: Optional[torch.LongTensor] = None,
+        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        **kwargs,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        input_shape = hidden_states.shape[:-1]
+        hidden_shape = (*input_shape, -1, self.head_dim)
+
+        query_states = self.q_norm(self.q_proj(hidden_states))
+        key_states = self.k_norm(self.k_proj(hidden_states))
+        value_states = self.v_proj(hidden_states)
+
+        if self.config.clip_qkv is not None:
+            query_states.clamp_(min=-self.config.clip_qkv, max=self.config.clip_qkv)
+            key_states.clamp_(min=-self.config.clip_qkv, max=self.config.clip_qkv)
+            value_states.clamp_(min=-self.config.clip_qkv, max=self.config.clip_qkv)
+
+        query_states = query_states.view(hidden_shape).transpose(1, 2)
+        key_states = key_states.view(hidden_shape).transpose(1, 2)
+        value_states = value_states.view(hidden_shape).transpose(1, 2)
+
+        cos, sin = position_embeddings
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
+
+        if past_key_value is not None:
+            # sin and cos are specific to RoPE models; cache_position needed for the static cache
+            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
+            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+
+        attention_interface: Callable = eager_attention_forward
+        if self.config._attn_implementation != "eager":
+            if self.config._attn_implementation == "sdpa" and kwargs.get("output_attentions", False):
+                logger.warning_once(
+                    "`torch.nn.functional.scaled_dot_product_attention` does not support `output_attentions=True`. Falling back to "
+                    'eager attention. This warning can be removed using the argument `attn_implementation="eager"` when loading the model.'
+                )
+            else:
+                attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
+
+        attn_output, attn_weights = attention_interface(
+            self,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=0.0 if not self.training else self.attention_dropout,
+            scaling=self.scaling,
+            **kwargs,
+        )
+
+        attn_output = attn_output.reshape(*input_shape, -1).contiguous()
+        attn_output = self.o_proj(attn_output)
+        return attn_output, attn_weights, past_key_value
 
 
 class Olmoe2DecoderLayer(OlmoeDecoderLayer):
