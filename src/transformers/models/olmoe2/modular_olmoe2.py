@@ -188,6 +188,10 @@ ALL_LAYERNORM_LAYERS.append(Olmoe2RMSNorm)
 
 
 class Olmoe2Attention(OlmoeAttention):
+    def __init__(self, config: Olmoe2Config, layer_idx: Optional[int] = None):
+        super().__init__(config, layer_idx=layer_idx)
+        self.scaling = self.head_dim**-0.5
+
     def forward(
         self,
         hidden_states: torch.Tensor,
