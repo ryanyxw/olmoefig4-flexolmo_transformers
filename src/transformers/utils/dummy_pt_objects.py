@@ -7223,6 +7223,27 @@ class OlmoePreTrainedModel(metaclass=DummyObject):
         requires_backends(self, ["torch"])
 
 
+class Olmoe2ForCausalLM(metaclass=DummyObject):
+    _backends = ["torch"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
+class Olmoe2Model(metaclass=DummyObject):
+    _backends = ["torch"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
+class Olmoe2PreTrainedModel(metaclass=DummyObject):
+    _backends = ["torch"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
 class OmDetTurboForObjectDetection(metaclass=DummyObject):
     _backends = ["torch"]
 
