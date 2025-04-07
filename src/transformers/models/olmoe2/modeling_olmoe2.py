@@ -5,7 +5,7 @@
 #                          modular_olmoe2.py file directly. One of our CI enforces this.
 #                🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
 from typing import Callable, List, Optional, Tuple, Union
-
+from ipdb import set_trace as bp
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -253,13 +253,41 @@ class Olmoe2SparseMoeBlock(nn.Module):
         self.gate = nn.Linear(config.hidden_size, self.num_experts, bias=False)
         self.experts = nn.ModuleList([Olmoe2MLP(config) for _ in range(self.num_experts)])
 
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+    def forward(self, hidden_states: torch.Tensor, btm_weight: Optional[torch.Tensor] = None) -> torch.Tensor:
         batch_size, sequence_length, hidden_dim = hidden_states.shape
         hidden_states = hidden_states.view(-1, hidden_dim)
         # router_logits: (batch * sequence_length, n_experts)
         router_logits = self.gate(hidden_states)
+        # bp()
+        # swj
+        '''
+        # 1. Extract the weights from current gate
+        original_weights = self.gate.weight  # Shape: [4, 4096]
 
+        # 2. Get only the first two rows of weights
+        # new_weights = original_weights[:2].clone()  # Shape: [2, 4096]
+        indices = torch.tensor([0, 2], device=original_weights.device)
+        new_weights = original_weights.index_select(0, indices)  # Shape: [2, 4096]
+
+
+        # 3. Create a new linear layer
+        import torch.nn as nn
+        new_gate = nn.Linear(in_features=4096, out_features=2, bias=False)
+
+        # 4. Assign the weights to the new layer
+        new_gate.weight.data = new_weights
+
+        router_logits = new_gate(hidden_states)
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+        torch.mean(routing_weights, dim=0)
+        '''
+        # apply btm weight before 
+        btm_weight_expanded = btm_weight.unsqueeze(0)  # Shape: [1, 4]
+        router_logits = router_logits * btm_weight_expanded
+        # F.softmax(router_logits * btm_weight_expanded, dim=1, dtype=torch.float)
+        routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+        # swj
+
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
         if self.norm_topk_prob:
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
@@ -313,6 +341,7 @@ class Olmoe2DecoderLayer(nn.Module):
         use_cache: Optional[bool] = False,
         cache_position: Optional[torch.LongTensor] = None,
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        btm_weight: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
@@ -359,7 +388,7 @@ class Olmoe2DecoderLayer(nn.Module):
 
         # Fully Connected
         residual = hidden_states
-        hidden_states, router_logits = self.mlp(hidden_states)
+        hidden_states, router_logits = self.mlp(hidden_states, btm_weight)
         hidden_states = self.post_feedforward_layernorm(hidden_states)
         hidden_states = residual + hidden_states
 
@@ -610,6 +639,7 @@ class Olmoe2Model(Olmoe2PreTrainedModel):
         output_router_logits: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
+        btm_weight: Optional[torch.Tensor] = None,
     ) -> Union[Tuple, MoeModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_router_logits = (
@@ -699,6 +729,7 @@ class Olmoe2Model(Olmoe2PreTrainedModel):
                     use_cache=use_cache,
                     cache_position=cache_position,
                     position_embeddings=position_embeddings,
+                    btm_weight=btm_weight,
                 )
 
             hidden_states = layer_outputs[0]
@@ -950,6 +981,7 @@ class Olmoe2ForCausalLM(Olmoe2PreTrainedModel, GenerationMixin):
         self.num_experts_per_tok = config.num_experts_per_tok
         # Initialize weights and apply final processing
         self.post_init()
+        self.btm_weight = torch.ones(self.num_experts)
 
     def get_input_embeddings(self):
         return self.model.embed_tokens
@@ -1022,6 +1054,7 @@ class Olmoe2ForCausalLM(Olmoe2PreTrainedModel, GenerationMixin):
         ```
         """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        # bp()
         output_router_logits = (
             output_router_logits if output_router_logits is not None else self.config.output_router_logits
         )
@@ -1029,7 +1062,7 @@ class Olmoe2ForCausalLM(Olmoe2PreTrainedModel, GenerationMixin):
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
+        # bp()
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs = self.model(
             input_ids=input_ids,
@@ -1043,6 +1076,7 @@ class Olmoe2ForCausalLM(Olmoe2PreTrainedModel, GenerationMixin):
             output_router_logits=output_router_logits,
             return_dict=return_dict,
             cache_position=cache_position,
+            btm_weight=self.btm_weight,
         )
 
         hidden_states = outputs[0]
@@ -1054,6 +1088,7 @@ class Olmoe2ForCausalLM(Olmoe2PreTrainedModel, GenerationMixin):
         if labels is not None:
             loss = self.loss_function(logits, labels, self.vocab_size, **loss_kwargs)
 
+        # bp()
         aux_loss = None
         if output_router_logits:
             aux_loss = load_balancing_loss_func(
