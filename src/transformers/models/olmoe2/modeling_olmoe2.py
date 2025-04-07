@@ -300,7 +300,7 @@ class Olmoe2SparseMoeBlock(nn.Module):
             routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
             # mask out the routing weights for the nontopk experts
             routing_weights[:, selected_experts] = 0.0
-            outing_weights, selected_experts = torch.topk(routing_weights, btm_topk, dim=-1)
+            routing_weights, selected_experts = torch.topk(routing_weights, btm_topk, dim=-1)
 
 
         if self.norm_topk_prob:
