@@ -287,12 +287,12 @@ class Olmoe2SparseMoeBlock(nn.Module):
         if btm_topk == -1:
             # apply btm weight before 
             # F.softmax(router_logits * btm_weight_expanded, dim=1, dtype=torch.float)
-            routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+            # routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
 
             # add BTM weight to the routing weights
             btm_weight_expanded = btm_weight.unsqueeze(0)  # Shape: [1, 4]
-            routing_weights = routing_weights * btm_weight_expanded
-            routing_weights = F.softmax(routing_weights, dim=1, dtype=torch.float)
+            router_logits = router_logits + btm_weight_expanded
+            routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
             # swj
             routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
         else:
