@@ -291,28 +291,31 @@ class Olmoe2SparseMoeBlock(nn.Module):
 
             # add BTM weight to the routing weights
             btm_weight_expanded = btm_weight.unsqueeze(0)  # Shape: [1, 4]
-            routing_weights = routing_weights + btm_weight_expanded
+            routing_weights = routing_weights * btm_weight_expanded
             routing_weights = F.softmax(routing_weights, dim=1, dtype=torch.float)
             # swj
             routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
         else:
-            routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
-            # use BTM weight to select topk experts, set the BTM weight to 0 for the nontopk experts
-            topk_experts = torch.topk(btm_weight, self.top_k, dim=-1)
-            selected_experts = topk_experts.indices[:btm_topk]
-            # bp()
-            # compute the routing weights
-            routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
-            # mask out the routing weights for the nontopk experts
-            routing_weights[:, selected_experts] = 0.0
-            routing_weights, selected_experts = torch.topk(routing_weights, btm_topk, dim=-1)
+            routing_weights = F.softmax(router_logits/1.5, dim=1, dtype=torch.float)
+            # routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+            # # use BTM weight to select topk experts, set the BTM weight to 0 for the nontopk experts
+            # topk_experts = torch.topk(btm_weight, self.top_k, dim=-1)
+            # selected_experts = topk_experts.indices[:btm_topk]
+            # # bp()
+            # # compute the routing weights
+            # routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+            # # mask out the routing weights for the nontopk experts
+            # routing_weights[:, selected_experts] = 0.0
+            # routing_weights, selected_experts = torch.topk(routing_weights, btm_topk, dim=-1)
 
+        # routing_weights = F.softmax(router_logits/1.5, dim=1, dtype=torch.float)
+        routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
 
         if self.norm_topk_prob:
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
         # we cast back to the input dtype
         routing_weights = routing_weights.to(hidden_states.dtype)
-
+        
         final_hidden_states = torch.zeros(
             (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device
         )
