@@ -283,6 +283,7 @@ class Olmoe2SparseMoeBlock(nn.Module):
         torch.mean(routing_weights, dim=0)
         '''
         # bp()
+        btm_topk = -1
         if btm_topk == -1:
             # apply btm weight before 
             # F.softmax(router_logits * btm_weight_expanded, dim=1, dtype=torch.float)
