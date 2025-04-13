@@ -313,13 +313,13 @@ class Olmoe2SparseMoeBlock(nn.Module):
         '''
         # bp()
         # take the first expert as the shared expert
-        routed_experts = router_logits[:, 1:]
-        routing_weights = F.softmax(routed_experts, dim=1, dtype=torch.float)
-        # concatenate the shared expert with the routing weights, the shared expert weight is 1
-        routing_weights = torch.cat([torch.ones(routed_experts.shape[0], 1, device=hidden_states.device), routing_weights], dim=1)
+        # routed_experts = router_logits[:, 1:]
+        # routing_weights = F.softmax(routed_experts, dim=1, dtype=torch.float)
+        # # concatenate the shared expert with the routing weights, the shared expert weight is 1
+        # routing_weights = torch.cat([torch.ones(routed_experts.shape[0], 1, device=hidden_states.device), routing_weights], dim=1)
 
         # original 
-        # routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+        routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
 
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
         # bp()
