@@ -281,7 +281,8 @@ class Olmoe2SparseMoeBlock(nn.Module):
         router_logits = new_gate(hidden_states)
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
         torch.mean(routing_weights, dim=0)
-        '''
+        
+
         # bp()
         btm_topk = -1
         if btm_topk == -1:
@@ -290,9 +291,11 @@ class Olmoe2SparseMoeBlock(nn.Module):
             # routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
 
             # add BTM weight to the routing weights
-            btm_weight_expanded = btm_weight.unsqueeze(0)  # Shape: [1, 4]
+            scaling_factor = 1 # Adjust this value between 0.0-1.0 to control influence
+            btm_weight_expanded = btm_weight.unsqueeze(0) * scaling_factor
             router_logits = router_logits + btm_weight_expanded
             routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+            
             # swj
             routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
         else:
@@ -307,10 +310,19 @@ class Olmoe2SparseMoeBlock(nn.Module):
             # # mask out the routing weights for the nontopk experts
             # routing_weights[:, selected_experts] = 0.0
             # routing_weights, selected_experts = torch.topk(routing_weights, btm_topk, dim=-1)
+        '''
+        # bp()
+        # take the first expert as the shared expert
+        routed_experts = router_logits[:, 1:]
+        routing_weights = F.softmax(routed_experts, dim=1, dtype=torch.float)
+        # concatenate the shared expert with the routing weights, the shared expert weight is 1
+        routing_weights = torch.cat([torch.ones(routed_experts.shape[0], 1, device=hidden_states.device), routing_weights], dim=1)
 
-        # routing_weights = F.softmax(router_logits/1.5, dim=1, dtype=torch.float)
+        # original 
+        # routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
-
+        # bp()
         if self.norm_topk_prob:
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
         # we cast back to the input dtype
