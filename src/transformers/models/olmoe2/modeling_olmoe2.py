@@ -320,8 +320,8 @@ class Olmoe2SparseMoeBlock(nn.Module):
 
         # original 
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
-
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
+        print("self.norm_topk_prob: ", self.norm_topk_prob)
         # bp()
         if self.norm_topk_prob:
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
