@@ -318,6 +318,8 @@ class Olmoe2SparseMoeBlock(nn.Module):
         # # concatenate the shared expert with the routing weights, the shared expert weight is 1
         # routing_weights = torch.cat([torch.ones(routed_experts.shape[0], 1, device=hidden_states.device), routing_weights], dim=1)
 
+        # swj change bias: 
+        router_logits[:, 0] += 0.01
         # original 
         routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
