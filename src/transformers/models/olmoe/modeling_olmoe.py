@@ -319,10 +319,10 @@ class OlmoeAttention(nn.Module):
         self.k_proj = nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=config.attention_bias)
         self.v_proj = nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=config.attention_bias)
         self.o_proj = nn.Linear(self.hidden_size, self.hidden_size, bias=config.attention_bias)
-        self.q_norm = OlmoeRMSNorm(self.hidden_size, eps=config.rms_norm_eps)
-        self.k_norm = OlmoeRMSNorm(
-            (self.hidden_size // self.num_heads) * self.num_key_value_heads, eps=config.rms_norm_eps
-        )
+        # self.q_norm = OlmoeRMSNorm(self.hidden_size, eps=config.rms_norm_eps)
+        # self.k_norm = OlmoeRMSNorm(
+        #     (self.hidden_size // self.num_heads) * self.num_key_value_heads, eps=config.rms_norm_eps
+        # )
 
     def forward(
         self,
@@ -338,8 +338,10 @@ class OlmoeAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
 
-        query_states = self.q_norm(self.q_proj(hidden_states))
-        key_states = self.k_norm(self.k_proj(hidden_states))
+        # query_states = self.q_norm(self.q_proj(hidden_states))
+        # key_states = self.k_norm(self.k_proj(hidden_states))
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
         if self.config.clip_qkv is not None:
@@ -422,8 +424,10 @@ class OlmoeFlashAttention2(OlmoeAttention):
 
         bsz, q_len, _ = hidden_states.size()
 
-        query_states = self.q_norm(self.q_proj(hidden_states))
-        key_states = self.k_norm(self.k_proj(hidden_states))
+        # query_states = self.q_norm(self.q_proj(hidden_states))
+        # key_states = self.k_norm(self.k_proj(hidden_states))
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
         if self.config.clip_qkv is not None:
             query_states.clamp_(min=-self.config.clip_qkv, max=self.config.clip_qkv)
@@ -537,8 +541,10 @@ class OlmoeSdpaAttention(OlmoeAttention):
 
         bsz, q_len, _ = hidden_states.size()
 
-        query_states = self.q_norm(self.q_proj(hidden_states))
-        key_states = self.k_norm(self.k_proj(hidden_states))
+        # query_states = self.q_norm(self.q_proj(hidden_states))
+        # key_states = self.k_norm(self.k_proj(hidden_states))
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
         if self.config.clip_qkv is not None:
